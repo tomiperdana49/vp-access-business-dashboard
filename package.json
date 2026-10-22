@@ -18,6 +18,8 @@
     "@types/node": "^25.9.1",
     "apexcharts": "^3.46.0",
     "axios": "^1.16.1",
+    "jspdf": "3.0.3",
+    "jspdf-autotable": "5.0.2",
     "modern-screenshot": "^4.7.0",
     "nuxt": "^4.4.6",
     "nuxt-vue3-google-signin": "0.0.13",

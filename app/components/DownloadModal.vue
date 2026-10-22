@@ -11,6 +11,7 @@
           </h3>
           <p class="text-sm text-neutral-500 leading-normal">
             Pilih periode data untuk setiap dashboard yang ingin dimasukkan ke dalam laporan sebelum mengunduh file.
+            Cabang: <span class="font-medium text-neutral-700">{{ branchLabel }}</span>
           </p>
         </div>
         <UButton
@@ -37,8 +38,9 @@
               <div v-for="item in section.items" :key="item.label" class="flex items-center justify-between gap-4">
                 <span class="text-sm font-medium text-neutral-600">{{ item.label }}</span>
                 <USelect
-                  v-model="item.model.value"
+                  v-model="periods[item.key]"
                   :items="timeframeOptions"
+                  :disabled="isDownloading"
                   class="w-36 shrink-0"
                 />
               </div>
@@ -55,8 +57,11 @@
         class="w-full justify-center"
         @click="handleDownload"
       >
-        Download PDF
+        {{ isDownloading ? 'Menyiapkan laporan...' : 'Download PDF' }}
       </UButton>
+      <p v-if="isDownloading" class="text-xs text-neutral-500 text-center -mt-2">
+        Mengambil data semua dashboard, bisa memakan waktu hingga 1 menit.
+      </p>
 
       </UCard>
     </template>
@@ -64,51 +69,95 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from '@nuxt/ui/runtime/composables/useToast.js'
+import { useDashboardFilters } from '~/composables/useDashboardFilters'
+import { reportService, type ReportPeriods } from '~/services/report-service'
+
 // Modal open state bound as a model
 const open = defineModel<boolean>({ default: false })
 const isDownloading = ref(false)
 
-// Select options state matching the mockup design
-const growthLagging = ref('This Month')
-const growthLeading = ref('Last Month')
-const retentionLagging = ref('This Month')
-const retentionLeading = ref('Last Month')
-const serviceLagging = ref('This Month')
-const serviceLeading = ref('Last Month')
+const toast = useToast()
+const { state: authState } = useAuth()
+const { selectedBranch, branchOptions, timeframeOptions } = useDashboardFilters()
 
-const timeframeOptions = ['This Month', 'Last Month', 'This Quarter', 'This Year']
+const branchLabel = computed(() => branchOptions.find(b => b.value === selectedBranch.value)?.label ?? selectedBranch.value)
+
+// Period per dashboard section, using the same values as the dashboard timeframe filter
+const periods = reactive<ReportPeriods>({
+  growthLagging: 'month',
+  growthLeading: 'last',
+  retentionLagging: 'month',
+  retentionLeading: 'last',
+  serviceLagging: 'month',
+  serviceLeading: 'last'
+})
 
 // Group items into data-driven structures to eliminate template duplication
-const sections = [
+const sections: { title: string, items: { label: string, key: keyof ReportPeriods }[] }[] = [
   {
     title: 'Growth Dashboard',
     items: [
-      { label: 'Lagging Indicator', model: growthLagging },
-      { label: 'Leading Indicator', model: growthLeading }
+      { label: 'Lagging Indicator', key: 'growthLagging' },
+      { label: 'Leading Indicator', key: 'growthLeading' }
     ]
   },
   {
     title: 'Retention Dashboard',
     items: [
-      { label: 'Lagging Indicator', model: retentionLagging },
-      { label: 'Leading Indicator', model: retentionLeading }
+      { label: 'Lagging Indicator', key: 'retentionLagging' },
+      { label: 'Leading Indicator', key: 'retentionLeading' }
     ]
   },
   {
     title: 'Service and Quality Dashboard',
     items: [
-      { label: 'Lagging Indicator', model: serviceLagging },
-      { label: 'Leading Indicator', model: serviceLeading }
+      { label: 'Lagging Indicator', key: 'serviceLagging' },
+      { label: 'Leading Indicator', key: 'serviceLeading' }
     ]
   }
 ]
 
-// Simulates a premium download delay with a loading spinner
-const handleDownload = () => {
+const periodLabel = (value: string) => timeframeOptions.find(t => t.value === value)?.label ?? value
+
+// Fetch every dashboard metric for the chosen periods and download it as a PDF data report
+const handleDownload = async () => {
   isDownloading.value = true
-  setTimeout(() => {
-    isDownloading.value = false
+  try {
+    const data = await reportService.getReportData(selectedBranch.value, { ...periods })
+    const { buildReportPdf } = await import('~/utils/report-pdf')
+
+    const generatedAt = new Date()
+    const doc = buildReportPdf(data, {
+      branchLabel: branchLabel.value,
+      periodLabels: Object.fromEntries(
+        (Object.keys(periods) as (keyof ReportPeriods)[]).map(key => [key, periodLabel(periods[key])])
+      ) as Record<keyof ReportPeriods, string>,
+      userName: authState.user?.name || '-',
+      generatedAt
+    })
+
+    const date = generatedAt.toISOString().slice(0, 10)
+    const branchSlug = branchLabel.value.toLowerCase().replace(/\s+/g, '-')
+    doc.save(`laporan-vp-access-business-${branchSlug}-${date}.pdf`)
+
+    toast.add({
+      title: 'Laporan berhasil diunduh',
+      description: data.failedCount > 0 ? `${data.failedCount} metrik gagal dimuat dan ditandai di laporan.` : undefined,
+      icon: 'i-lucide-circle-check',
+      color: data.failedCount > 0 ? 'warning' : 'success'
+    })
     open.value = false
-  }, 1500)
+  } catch (error) {
+    console.error('Failed to generate report:', error)
+    toast.add({
+      title: 'Gagal membuat laporan',
+      description: 'Silakan coba lagi.',
+      icon: 'i-lucide-circle-x',
+      color: 'error'
+    })
+  } finally {
+    isDownloading.value = false
+  }
 }
 </script>
