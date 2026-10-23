@@ -156,6 +156,7 @@
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function r1(n) { return Math.round((Number(n) || 0) * 100) / 100; } // round to 2 decimals (internal sums)
   function fmt(n) { return String(Math.floor((Number(n) || 0) + 1e-6)); } // whole number, floored
+  function fmtDec(n) { return (Number(n) || 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } // 2 decimals, e.g. 15,39
   function isHoliday(year, monthIndex, d) {
     if (new Date(year, monthIndex, d).getDay() === 0) return true; // Sunday
     return !!HOLIDAY_SET[year + '-' + pad2(monthIndex + 1) + '-' + pad2(d)];
@@ -381,7 +382,7 @@
     elTbody.innerHTML = body;
 
     // footer
-    var foot = '<td class="foot-label">average: ' + fmt(colTotals[0] / day) + '</td><td class="col-total">' + fmt(colTotals[0]) + '</td>';
+    var foot = '<td class="foot-label">average: ' + fmtDec(colTotals[0] / day) + '</td><td class="col-total">' + fmt(colTotals[0]) + '</td>';
     for (var f = 1; f <= day; f++) {
       foot += '<td class="col-num' + (isHoliday(Y, M, f) ? ' holiday' : '') + (f === day ? ' today' : '') + '">' + fmt(colTotals[f]) + '</td>';
     }
