@@ -93,7 +93,7 @@
           <tr>
             <th>Nama BDE</th>
             <th class="col-num">Total Activity this week</th>
-            <th class="col-num">MRC Update This month</th>
+            <th class="col-num">MRC Update This 3 month</th>
             <th class="col-num">% Pencapaian Target</th>
           </tr>
         </thead>
